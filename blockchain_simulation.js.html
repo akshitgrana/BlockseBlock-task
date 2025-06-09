@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Simulator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .blockchain {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .block {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            background: #f9f9f9;
+            transition: all 0.3s ease;
+        }
+        
+        .block.valid {
+            border-color: #4CAF50;
+            background: #f0fff0;
+        }
+        
+        .block.invalid {
+            border-color: #f44336;
+            background: #fff0f0;
+            animation: shake 0.5s ease-in-out;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        .block-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .block-title {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .status.valid {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .status.invalid {
+            background: #f44336;
+            color: white;
+        }
+        
+        .block-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .info-item {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: #555;
+            font-size: 0.9em;
+        }
+        
+        .info-value {
+            font-family: monospace;
+            color: #333;
+            word-break: break-all;
+            margin-top: 5px;
+        }
+        
+        .data-section {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        
+        .data-input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+            margin-top: 10px;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 0 10px;
+            transition: background 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: #5a6fd8;
+        }
+        
+        .btn.danger {
+            background: #f44336;
+        }
+        
+        .btn.danger:hover {
+            background: #da190b;
+        }
+        
+        .explanation {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 5px solid #2196F3;
+            margin-top: 20px;
+        }
+        
+        .arrow {
+            text-align: center;
+            font-size: 2em;
+            color: #667eea;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Blockchain Simulator</h1>
+        
+        <div class="controls">
+            <button class="btn" onclick="initializeBlockchain()">Initialize Blockchain</button>
+            <button class="btn danger" onclick="tamperWithBlock1()">Tamper with Block 1</button>
+            <button class="btn" onclick="recomputeHashes()">Recompute All Hashes</button>
+        </div>
+        
+        <div id="blockchain" class="blockchain">
+            <!-- Blocks will be rendered here -->
+        </div>
+        
+        <div class="explanation">
+            <h3>🧪 Try This Experiment:</h3>
+            <p><strong>Step 1:</strong> Click "Initialize Blockchain" to create a valid 3-block chain</p>
+            <p><strong>Step 2:</strong> Click "Tamper with Block 1" to modify its data</p>
+            <p><strong>Step 3:</strong> Notice how all following blocks become invalid (red) because their previousHash no longer matches</p>
+            <p><strong>Step 4:</strong> Click "Recompute All Hashes" to fix the chain</p>
+            <p><strong>Key Insight:</strong> This demonstrates blockchain's tamper-evident property - changing one block breaks the entire chain!</p>
+        </div>
+    </div>
+
+    <script>
+        class Block {
+            constructor(index, data, previousHash = '') {
+                this.index = index;
+                this.timestamp = new Date().toISOString();
+                this.data = data;
+                this.previousHash = previousHash;
+                this.nonce = 0;
+                this.hash = this.calculateHash();
+            }
+
+            calculateHash() {
+                return CryptoJS.SHA256(
+                    this.index + 
+                    this.timestamp + 
+                    JSON.stringify(this.data) + 
+                    this.previousHash + 
+                    this.nonce
+                ).toString();
+            }
+
+            isValid(previousBlock) {
+                // Check if hash is correct
+                if (this.hash !== this.calculateHash()) {
+                    return false;
+                }
+                
+                // Check if previousHash matches previous block's hash (except for genesis block)
+                if (previousBlock && this.previousHash !== previousBlock.hash) {
+                    return false;
+                }
+                
+                return true;
+            }
+        }
+
+        class Blockchain {
+            constructor() {
+                this.chain = [];
+            }
+
+            createGenesisBlock() {
+                return new Block(0, "Genesis Block", "0");
+            }
+
+            getLatestBlock() {
+                return this.chain[this.chain.length - 1];
+            }
+
+            addBlock(data) {
+                const previousBlock = this.getLatestBlock();
+                const newBlock = new Block(
+                    this.chain.length,
+                    data,
+                    previousBlock ? previousBlock.hash : '0'
+                );
+                this.chain.push(newBlock);
+            }
+
+            isChainValid() {
+                for (let i = 0; i < this.chain.length; i++) {
+                    const currentBlock = this.chain[i];
+                    const previousBlock = i > 0 ? this.chain[i - 1] : null;
+                    
+                    if (!currentBlock.isValid(previousBlock)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            recomputeHashesFromBlock(startIndex) {
+                for (let i = startIndex; i < this.chain.length; i++) {
+                    const block = this.chain[i];
+                    const previousBlock = i > 0 ? this.chain[i - 1] : null;
+                    
+                    if (previousBlock) {
+                        block.previousHash = previousBlock.hash;
+                    }
+                    block.hash = block.calculateHash();
+                }
+            }
+        }
+
+        let blockchain = new Blockchain();
+
+        function initializeBlockchain() {
+            blockchain = new Blockchain();
+            
+            // Add genesis block
+            blockchain.chain.push(blockchain.createGenesisBlock());
+            
+            // Add two more blocks
+            blockchain.addBlock({
+                transaction: "Alice sends 10 coins to Bob",
+                amount: 10,
+                fee: 0.1
+            });
+            
+            blockchain.addBlock({
+                transaction: "Bob sends 5 coins to Charlie",
+                amount: 5,
+                fee: 0.05
+            });
+            
+            renderBlockchain();
+        }
+
+        function tamperWithBlock1() {
+            if (blockchain.chain.length > 1) {
+                // Modify the data of block 1 (second block)
+                blockchain.chain[1].data = {
+                    transaction: "Alice sends 1000 coins to Bob (TAMPERED!)",
+                    amount: 1000,
+                    fee: 0.1
+                };
+                // Don't recalculate hash - this simulates tampering
+                renderBlockchain();
+            }
+        }
+
+        function recomputeHashes() {
+            blockchain.recomputeHashesFromBlock(1); // Start from block 1
+            renderBlockchain();
+        }
+
+        function updateBlockData(index, newData) {
+            if (blockchain.chain[index]) {
+                try {
+                    blockchain.chain[index].data = JSON.parse(newData);
+                    renderBlockchain();
+                } catch (e) {
+                    alert("Invalid JSON format!");
+                }
+            }
+        }
+
+        function renderBlockchain() {
+            const container = document.getElementById('blockchain');
+            container.innerHTML = '';
+
+            blockchain.chain.forEach((block, index) => {
+                const previousBlock = index > 0 ? blockchain.chain[index - 1] : null;
+                const isValid = block.isValid(previousBlock);
+                
+                const blockElement = document.createElement('div');
+                blockElement.className = `block ${isValid ? 'valid' : 'invalid'}`;
+                
+                blockElement.innerHTML = `
+                    <div class="block-header">
+                        <div class="block-title">Block ${block.index}</div>
+                        <div class="status ${isValid ? 'valid' : 'invalid'}">
+                            ${isValid ? '✓ Valid' : '✗ Invalid'}
+                        </div>
+                    </div>
+                    
+                    <div class="block-info">
+                        <div class="info-item">
+                            <div class="info-label">Index</div>
+                            <div class="info-value">${block.index}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Timestamp</div>
+                            <div class="info-value">${new Date(block.timestamp).toLocaleString()}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Previous Hash</div>
+                            <div class="info-value">${block.previousHash}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Current Hash</div>
+                            <div class="info-value">${block.hash}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Nonce</div>
+                            <div class="info-value">${block.nonce}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Calculated Hash</div>
+                            <div class="info-value" style="color: ${block.hash === block.calculateHash() ? 'green' : 'red'}">
+                                ${block.calculateHash()}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="data-section">
+                        <div class="info-label">Block Data</div>
+                        <textarea class="data-input" rows="3" onchange="updateBlockData(${index}, this.value)">${JSON.stringify(block.data, null, 2)}</textarea>
+                    </div>
+                `;
+                
+                container.appendChild(blockElement);
+                
+                // Add arrow between blocks
+                if (index < blockchain.chain.length - 1) {
+                    const arrow = document.createElement('div');
+                    arrow.className = 'arrow';
+                    arrow.innerHTML = '⬇️';
+                    container.appendChild(arrow);
+                }
+            });
+        }
+
+        // Initialize the blockchain when page loads
+        window.onload = function() {
+            initializeBlockchain();
+        };
+    </script>
+</body>
+</html>
