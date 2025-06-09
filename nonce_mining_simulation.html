@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nonce Mining Simulation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .mining {
+            background: #fff3cd;
+            border-color: #ffeaa7;
+        }
+        
+        .success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+        }
+        
+        .result {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Nonce Mining Simulation</h1>
+    
+    <div class="container">
+        <div class="form-group">
+            <label for="difficulty">Difficulty (leading zeros):</label>
+            <select id="difficulty">
+                <option value="1">1 - Easy</option>
+                <option value="2">2 - Medium</option>
+                <option value="3">3 - Hard</option>
+                <option value="4" selected>4 - Very Hard</option>
+                <option value="5">5 - Extreme</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="blockData">Block Data:</label>
+            <input type="text" id="blockData" value="Alice sends 10 BTC to Bob">
+        </div>
+        
+        <button id="mineBtn" onclick="startMining()">Start Mining</button>
+        <button id="stopBtn" onclick="stopMining()" disabled>Stop</button>
+        <button onclick="reset()">Reset</button>
+    </div>
+    
+    <div class="status" id="status">Ready to mine</div>
+    
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-value" id="attempts">0</div>
+            <div class="stat-label">Nonce Attempts</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="time">0.00s</div>
+            <div class="stat-label">Mining Time</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="hashRate">0</div>
+            <div class="stat-label">Hash Rate (H/s)</div>
+        </div>
+    </div>
+    
+    <div id="results"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script>
+        class Block {
+            constructor(data) {
+                this.timestamp = Date.now();
+                this.data = data;
+                this.previousHash = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f";
+                this.nonce = 0;
+                this.hash = this.calculateHash();
+                this.mining = false;
+            }
+            
+            calculateHash() {
+                return CryptoJS.SHA256(
+                    this.previousHash + 
+                    this.timestamp + 
+                    this.data + 
+                    this.nonce
+                ).toString();
+            }
+            
+            async mineBlock(difficulty) {
+                const target = "0".repeat(difficulty);
+                const startTime = Date.now();
+                let attempts = 0;
+                
+                this.mining = true;
+                
+                return new Promise((resolve) => {
+                    const mine = () => {
+                        if (!this.mining) {
+                            resolve(null);
+                            return;
+                        }
+                        
+                        // Process in batches to keep UI responsive
+                        for (let i = 0; i < 1000 && this.mining; i++) {
+                            this.nonce++;
+                            attempts++;
+                            this.hash = this.calculateHash();
+                            
+                            if (this.hash.substring(0, difficulty) === target) {
+                                this.mining = false;
+                                const duration = (Date.now() - startTime) / 1000;
+                                resolve({
+                                    nonce: this.nonce,
+                                    attempts: attempts,
+                                    hash: this.hash,
+                                    duration: duration,
+                                    hashRate: Math.round(attempts / duration)
+                                });
+                                return;
+                            }
+                        }
+                        
+                        // Update UI
+                        updateProgress(attempts, this.hash);
+                        setTimeout(mine, 1);
+                    };
+                    
+                    mine();
+                });
+            }
+            
+            stopMining() {
+                this.mining = false;
+            }
+        }
+        
+        let currentBlock = null;
+        
+        function updateProgress(attempts, hash) {
+            document.getElementById('attempts').textContent = attempts.toLocaleString();
+            document.getElementById('status').textContent = `Mining... Attempts: ${attempts.toLocaleString()} | Hash: ${hash.substring(0, 16)}...`;
+        }
+        
+        async function startMining() {
+            const difficulty = parseInt(document.getElementById('difficulty').value);
+            const data = document.getElementById('blockData').value;
+            
+            if (!data.trim()) {
+                alert('Please enter block data');
+                return;
+            }
+            
+            currentBlock = new Block(data);
+            
+            document.getElementById('mineBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('status').className = 'status mining';
+            document.getElementById('status').textContent = 'Starting mining...';
+            
+            const result = await currentBlock.mineBlock(difficulty);
+            
+            if (result) {
+                // Success
+                document.getElementById('status').className = 'status success';
+                document.getElementById('status').textContent = `✓ Block mined successfully!`;
+                
+                document.getElementById('attempts').textContent = result.attempts.toLocaleString();
+                document.getElementById('time').textContent = result.duration.toFixed(2) + 's';
+                document.getElementById('hashRate').textContent = result.hashRate.toLocaleString();
+                
+                showResult(result);
+            } else {
+                // Stopped
+                document.getElementById('status').className = 'status';
+                document.getElementById('status').textContent = 'Mining stopped';
+            }
+            
+            document.getElementById('mineBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+        }
+        
+        function stopMining() {
+            if (currentBlock) {
+                currentBlock.stopMining();
+            }
+        }
+        
+        function showResult(result) {
+            document.getElementById('results').innerHTML = `
+                <div class="result">
+                    <strong>MINED BLOCK:</strong><br>
+                    Data: ${currentBlock.data}<br>
+                    Timestamp: ${new Date(currentBlock.timestamp).toLocaleString()}<br>
+                    Previous Hash: ${currentBlock.previousHash}<br>
+                    Nonce: ${result.nonce.toLocaleString()}<br>
+                    Hash: ${result.hash}<br><br>
+                    <strong>MINING STATS:</strong><br>
+                    Attempts: ${result.attempts.toLocaleString()}<br>
+                    Time: ${result.duration.toFixed(2)} seconds<br>
+                    Hash Rate: ${result.hashRate.toLocaleString()} H/s
+                </div>
+            `;
+        }
+        
+        function reset() {
+            stopMining();
+            document.getElementById('status').className = 'status';
+            document.getElementById('status').textContent = 'Ready to mine';
+            document.getElementById('attempts').textContent = '0';
+            document.getElementById('time').textContent = '0.00s';
+            document.getElementById('hashRate').textContent = '0';
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('blockData').value = 'Alice sends 10 BTC to Bob';
+        }
+        
+        console.log('Nonce Mining Simulation Ready');
+        console.log('This demonstrates Proof-of-Work by finding nonce values that create hashes with leading zeros.');
+    </script>
+</body>
+</html>
